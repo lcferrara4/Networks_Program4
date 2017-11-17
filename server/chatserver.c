@@ -1,8 +1,8 @@
-/* Networks Program 3
+/* Networks Program 4
  * Lauren Ferrara - lferrara
  * Charlie Newell - cnewell1
  *
- * Server side of FTP
+ * Server side of Chat Service
  */
 
 #include <unistd.h>

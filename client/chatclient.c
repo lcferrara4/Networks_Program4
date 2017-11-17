@@ -1,8 +1,8 @@
-/* Networks Program 3
+/* Networks Program 4
  * Lauren Ferrara - lferrara
  * Charlie Newell - cnewell1
  *
- * Client side of FTP
+ * Client side of Chat Service
  */
 
 #include <unistd.h>
@@ -17,8 +17,17 @@
 #include <netinet/in.h>
 #include <netdb.h>
 #include <arpa/inet.h>
+#include <pthread.h> // for threading, link with lpthread
+
+// threading function
+void *connection_handler(void *);
 
 #define BUFSIZE 4096
+
+// Global variables
+EXIT = 0
+
+
 int receiveInt(int bits, int socket) {
         int size = 0;
         if (bits == 32) {
@@ -94,36 +103,39 @@ int main (int argc, char *argv[]) {
 	// Variable declaration
 	int port, s, size;
 	char *server_name;
+	char *user_name;
 	struct hostent *server;
 	struct sockaddr_in server_addr;
 	char buffer[BUFSIZE];
 	int opt = 1; /* 0 to disable options */
 	char filename[BUFSIZE];
-	char operation[10];
 
 	// Check command line arguments
-	if (argc != 3) {
-		fprintf(stderr, "Usage: %s Server_Name [Port]\n", argv[0]);
+	if (argc != 4) {
+		fprintf(stderr, "Usage: %s Server_Name [Port] [User_Name]\n", argv[0]);
 		exit(1);
 	}
 	server_name = argv[1];
 	port = atoi(argv[2]);
+	user_name = argv[3];
 
 	// Translate server name to IP address
 	server = gethostbyname(server_name);
 	if (!server) {
-		fprintf(stderr, "FTP Client: Unknown server %s\n", server_name);
+		fprintf(stderr, "Chatclient: Unknown server %s\n", server_name);
 		exit(1);
 	}
 
 	// Open socket
 	if ((s = socket (PF_INET, SOCK_STREAM, 0)) < 0 ) {
-		perror("FTP Client: Unable to open socket\n");
+		perror("Chatclient: Unable to open socket\n");
 		exit(1);
 	}
 
+	/*
 	// Load buffer
 	bzero(buffer, BUFSIZE);
+	*/
 
 	// Build server address data structure
 	bzero((char*) &server_addr, sizeof(server_addr));
@@ -135,21 +147,48 @@ int main (int argc, char *argv[]) {
 
 	// Connect to socket
 	if (connect(s, (struct sockaddr*) &server_addr, sizeof(server_addr)) < 0 ) {
-		perror("FTP Client: Unable to connect to socket\n");
+		perror("Chatclient: Unable to connect to socket\n");
 		exit(1);
 	}
 
-	// Prompt user for operation
-	while (1) {
+	// Should this be threaded?
+	// Send username: TODO
+	// Get and print server request
+	// Send password: TODO
+	// Get and print server acknowledgement
 
-		printf("Enter FTP operation: ");
-		bzero((char*)&operation, sizeof(operation));
-		scanf("%s", operation);
-		size = strlen(operation);	
-		if (write(s, operation, size) < 0) {
-			perror("FTP Client: Error writing to socket\n");
-			exit(1);	
+	pthread_t thread2;
+	// Prompt user for operation state?
+	// Collects all messages from socket
+	while (!EXIT) {
+		int message_size = receiveInt(32, s);
+		char message[message_size];
+		if (read(s, message, message_size) < 0) {
+			perror("Chatclient: Error reading from socket\n");
+			exit(1);
 		}
+
+		if (pthread_create( &thread2, NULL, connection_handler, (void*) &buffer) < 0) {
+			perror("Chatclient: Could not create thread\n");
+			exit(1);
+		}
+	}
+}
+
+// Parses and reacts to messages from socket
+void *connection_handler(void *buffer) {
+	char operation[10];
+	char *message = (char*)buffer;
+	printf("%s", message);
+
+	printf("Enter FTP operation: ");
+	bzero((char*)&operation, sizeof(operation));
+	scanf("%s", operation);
+	size = strlen(operation);	
+	if (write(s, operation, size) < 0) {
+		perror("FTP Client: Error writing to socket\n");
+		exit(1);	
+	}
 
 		// Send message to server
 		if (!strcmp(operation, "QUIT")) {
