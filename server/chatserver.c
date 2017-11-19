@@ -55,7 +55,7 @@ void sendInt(int x, int bits, int socket) {
 		char *data = (char*)&conv;
 		int size_int = sizeof(conv);
 		// Write size of listing as 32-bit int		
-	        printf("%i\n", x);	
+	        //printf("%i\n", x);	
 		if (write(socket, data, size_int) < 0) {
 			perror("FTP Server: Error sending size of directory listing\n");
 			exit(1);
@@ -113,11 +113,62 @@ void getFileDir(int socket, char *filename) {
 	}
 }
 
+int checkUser(char* user_name) {
+	FILE* fstream = fopen("users.txt", "r");
+	char line[1024];
+	char *parse;
+	char user_pass[2][1024];
+
+
+	while(fgets(line, 1024, fstream)) {
+		parse = strtok(line, ",");
+		strcpy(user_pass[0], parse);
+		parse = strtok(NULL, ",");
+		strcpy(user_pass[1], parse);
+		
+		if (strcmp(user_pass[0], user_name) == 0){
+			return 1;
+	
+		}
+	}	
+	return 0;
+
+       
+}
+
+int checkNamePass(char* user_name, char* pass) {
+	FILE* fstream = fopen("users.txt", "r");
+	char line[1024];
+	char *parse;
+	char user_pass[2][1024];
+
+	//read in list of users and passwords
+	while(fgets(line, 1024, fstream)) {
+				
+		parse = strtok(line, ",");
+		strcpy(user_pass[0], parse);
+		parse = strtok(NULL, "\n");
+		strcpy(user_pass[1], parse);
+	
+		//compare user_name and password and return one if they match
+		if ((strcmp(user_pass[0], user_name) == 0) && (strcmp(user_pass[1], pass) == 0)) {
+			return 1;
+		}
+	}
+	return 0;
+}
+
+void writeUserToFile(char* user_name, char* pass) {
+	FILE* fstream = fopen("users.txt", "a");
+	fprintf(fstream, "%s,%s\n", user_name, pass);
+} 
+
+
 int main (int argc, char *argv[]) {
 
 	//variable declaration
 	int port, s, len,  s_new;
-	int c, client_sock, 
+	int c, client_sock; 
 	int waiting = 1;
 	struct sockaddr_in server, client;	
 	int opt = 1; /* 0 to disable options */
@@ -188,13 +239,60 @@ void *connection_handler(void *socket_desc) {
 	// Get socket descriptor
 	int sock = *(int*)socket_desc;
 	int read_size;
-	char *message, client_message[2000];
-
-	// Check whether user exists (store in file not memory): TODO
-	message = "Welcome back. Enter your password >> \r";
-	message = "New user? Create password >> \r";
-	write(sock, message, strlen(message));
+	char user_name[100];
+	int validPass = 0;
+	int new_user;
+	int userNamePass;
+	char *message, *response_message, client_message[2000];
 	
+	//Receive client_message which is user name
+	read_size = receiveInt(16, sock);
+	read(sock, client_message, read_size);
+
+	//save user name in user_name variable
+	strcpy(user_name, client_message);
+
+	//check if this user exists
+        new_user = checkUser(client_message);
+
+	//send proper message depending on whether use exists or not
+	if (new_user) {
+		message = "Welcome back. Enter your password >> ";
+	} else {
+		message = "New user? Create password >> ";
+	}
+
+	//send proper message back to client
+	sendInt(strlen(message), 32, sock);
+	write(sock, message, strlen(message));
+
+	//zero out client message
+	bzero((char *) client_message, sizeof(client_message));
+	
+	//receive password from client
+	read_size = receiveInt(16, sock);
+	read(sock, client_message, read_size);
+
+	//check if user name and password match
+	if (new_user) {
+		userNamePass = checkNamePass(user_name, client_message);
+		if(!userNamePass) {
+			response_message = "Wrong password! Exiting!";
+		} else {
+			response_message = "Welcome!";
+		}
+	} else {
+		//implement this
+		writeUserToFile(user_name, client_message);
+		response_message = "Welcome new user!";
+	}
+	
+	//send proper response back to client	
+	sendInt(strlen(response_message), 32, sock);
+	write(sock, response_message, strlen(response_message));
+
+		
+
 	// Save user and password (multiple clients should be able to register at once??): TODO
 	
 	// Wait for operation

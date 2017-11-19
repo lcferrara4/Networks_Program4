@@ -25,7 +25,7 @@ void *connection_handler(void *);
 #define BUFSIZE 4096
 
 // Global variables
-EXIT = 0
+int EXIT = 0;
 
 
 int receiveInt(int bits, int socket) {
@@ -49,7 +49,7 @@ int receiveInt(int bits, int socket) {
                 }
                 size = ntohs(ret);
         }
-	printf("%i\n", size);
+	//printf("%i\n", size);
         return size;
 }
 
@@ -109,6 +109,7 @@ int main (int argc, char *argv[]) {
 	char buffer[BUFSIZE];
 	int opt = 1; /* 0 to disable options */
 	char filename[BUFSIZE];
+	char pass[100];
 
 	// Check command line arguments
 	if (argc != 4) {
@@ -152,10 +153,32 @@ int main (int argc, char *argv[]) {
 	}
 
 	// Should this be threaded?
-	// Send username: TODO
-	// Get and print server request
-	// Send password: TODO
+	// send username to server
+	sendInt(strlen(user_name), 16, s);
+	write(s, user_name, strlen(user_name));
+		
+	// receive server message and print to user
+	int server_message_size = receiveInt(32, s);
+	char server_message[server_message_size];
+	read(s, server_message, server_message_size);
+	printf("%s", server_message);
+	
+	// Scan the password and send to user
+	scanf("%s", pass);
+	int passSize = strlen(pass);
+	sendInt(passSize, 16, s);	
+
+	//write password to user
+	if (write(s, pass, passSize) < 0) {
+		perror("Error writing to socket\n");
+		exit(1);
+	}
+
 	// Get and print server acknowledgement
+	int server_response_size = receiveInt(32, s);
+	char server_response[server_response_size];
+	read(s, server_response, server_response_size);
+	printf("%s\n", server_response);	
 
 	pthread_t thread2;
 	// Prompt user for operation state?
@@ -167,7 +190,7 @@ int main (int argc, char *argv[]) {
 			perror("Chatclient: Error reading from socket\n");
 			exit(1);
 		}
-
+		
 		if (pthread_create( &thread2, NULL, connection_handler, (void*) &buffer) < 0) {
 			perror("Chatclient: Could not create thread\n");
 			exit(1);
@@ -177,15 +200,21 @@ int main (int argc, char *argv[]) {
 
 // Parses and reacts to messages from socket
 void *connection_handler(void *buffer) {
-	char operation[10];
 	char *message = (char*)buffer;
-	printf("%s", message);
+	//printf("%s", message);
+	//printf("Enter FTP operation: ");
+	//bzero((char*)&operation, sizeof(operation));
+	/*scanf("%s", pass);
+	int passSize = strlen(pass);
+	
+	sendInt(passSize, 16, s);	
 
-	printf("Enter FTP operation: ");
-	bzero((char*)&operation, sizeof(operation));
-	scanf("%s", operation);
-	size = strlen(operation);	
-	if (write(s, operation, size) < 0) {
+	if (write(s, pass, passSize) < 0) {
+		perror("Error writing to socket\n");
+		exit(1);
+	}*/
+	
+	/*if (write(s, operation, size) < 0) {
 		perror("FTP Client: Error writing to socket\n");
 		exit(1);	
 	}
@@ -368,6 +397,6 @@ void *connection_handler(void *buffer) {
 			}
 		}
 	}
-	exit(0);
+	exit(0);*/
 }
 
