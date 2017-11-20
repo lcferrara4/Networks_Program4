@@ -401,14 +401,24 @@ void *connection_handler(void *socket_desc) {
 		
 		} else if (!strcmp(client_message, "B")) {
 			// Message Broadcasting
+
+			read_size = receiveInt(32, sock);
+			read(sock, message, read_size);
 			
 			for(i = 0; i < MAX_USERS; i++) {
-				if(allUsers[i].user_name != NULL) {
+				if(allUsers[i].user_name != NULL && allUsers[i].sd != sock) {
 					message = formatMessage(message, "D");
-			
+		
+					sendInt(strlen(message), 32, allUsers[i].sd);	
 					write(allUsers[i].sd, message, strlen(message));
 				}
 			}
+
+			// Send acknowledgment
+			response_message = formatMessage(response_message, "C");
+			sendInt(strlen(response_message), 32, sock);
+			write(sock, response_message, strlen(response_message));
+				
 
 		} else if (!strcmp(client_message, "P")) {
 			// Private Messaging

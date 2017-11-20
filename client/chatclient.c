@@ -324,6 +324,30 @@ void *connection_handler(void *sock) {
 				fflush(stdout);
 				EXIT = 1;
 			}
+			
+			else if (strcmp("B", command) == 0) {
+				//prompt for message
+				printf("Message to broadcast >> \n");
+				fgets (input, 2000, stdin);
+				fgets (input, 2000, stdin);
+				sendInt(strlen(input), 32, s);
+				if (write(s, input, strlen(input)) < 0) {
+					perror("Error writing to socket\n");
+					exit(1);
+				}
+				
+				bzero((char*)&input, sizeof(input));
+
+				//wait for ack
+				while (isEmpty(QUEUE)){}
+				message = pop_front(QUEUE);
+				while (message[0] == 'D') {
+					while (isEmpty(QUEUE)){}
+					message = pop_front(QUEUE);
+				}
+				fflush(stdout);
+			
+			}
 			else if (strcmp("P", command) == 0) {
 				// wait for list of users
 				while (isEmpty(QUEUE)){}
