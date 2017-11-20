@@ -347,7 +347,10 @@ void *connection_handler(void *sock) {
 
 				// prompt for message
 				printf("Message to send >> \n");
-				scanf ("%s", input);
+				fflush(stdin);
+				
+				fgets(input, 2000, stdin);
+				fgets(input, 2000, stdin);
 				sendInt(strlen(input), 32, s);
                 		if (write(s, input, strlen(input)) < 0) {
         				perror("Error writing to socket\n");

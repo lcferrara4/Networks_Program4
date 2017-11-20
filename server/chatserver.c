@@ -344,7 +344,14 @@ void *connection_handler(void *socket_desc) {
 		userNamePass = checkNamePass(user_name, client_message);
 		if(!userNamePass) {
 			response_message = "Wrong password! Exiting!\n";
-		} else {
+			response_message = formatMessage(response_message, "C");
+			
+			//send proper response back to client	
+			sendInt(strlen(response_message), 32, sock);
+			write(sock, response_message, strlen(response_message));
+
+			return;
+       		} else {
 			response_message = "Welcome back!\n";
 		}
 	} else {
@@ -427,7 +434,6 @@ void *connection_handler(void *socket_desc) {
 			// Get target user
 			read_size = receiveInt(16, sock);
 			read(sock, client_input, read_size);
-			printf("target user: %s\n", client_input);
 			char* target_user = (char *)malloc(strlen(client_input));
 			strcpy(target_user, client_input);
 			bzero((char *) client_input, sizeof(client_input));
@@ -437,7 +443,6 @@ void *connection_handler(void *socket_desc) {
 			read(sock, client_input, read_size);
 			char* target_ptr = (char *)malloc(strlen(client_input));
 			strcpy(target_ptr, client_input);
-			printf("Can I say \"%s\"\n", target_ptr);
 			bzero((char *) client_input, sizeof(client_input));
 
 			bzero((char*)&response_message, sizeof(response_message));
@@ -449,7 +454,6 @@ void *connection_handler(void *socket_desc) {
 
 				response_message = "Message was sent!\n";
 			} else {
-				printf("not sent\n");
 				response_message = "Target user did not exist or was not online.\n";
 			}
 			
