@@ -19,6 +19,67 @@
 #include <arpa/inet.h>
 #include <pthread.h> // for threading, link with lpthread
 
+// A structure to hold messages that need processing
+// Basic idea of queue implementation taken from geeksforgeeks example
+struct MessageQueue {
+	int front, rear, size;
+	unsigned capacity;
+	char** array;
+};
+ 
+// Create a queue of given capacity. 
+struct MessageQueue* createQueue(unsigned capacity) {
+	struct MessageQueue* queue = (struct MessageQueue*) malloc(sizeof(struct MessageQueue));
+	queue->capacity = capacity;
+	queue->front = queue->size = 0; 
+	queue->rear = capacity - 1;
+	queue->array = (char**) malloc(queue->capacity * sizeof(char*));
+	return queue;
+}
+ 
+// Queue is full when size becomes equal to the capacity 
+int isFull(struct MessageQueue* queue)
+{	return (queue->size == queue->capacity);  }
+ 
+// Queue is empty when size is 0
+int isEmpty(struct MessageQueue* queue)
+{	return (queue->size == 0); }
+ 
+// Function to add an item to the queue.  
+// It changes rear and size
+void push_back(struct MessageQueue* queue, char* message) {
+	if (isFull(queue))
+		return;
+	queue->rear = (queue->rear + 1)%queue->capacity;
+	queue->array[queue->rear] = message;
+	queue->size = queue->size + 1;
+}
+ 
+// Function to remove an item from queue. 
+// It changes front and size
+char* pop_front(struct MessageQueue* queue) {
+	if (isEmpty(queue))
+		return "";
+	char* message = queue->array[queue->front];
+	queue->front = (queue->front + 1)%queue->capacity;
+	queue->size = queue->size - 1;
+	return message;
+}
+ 
+// Function to get front of queue
+char* front(struct MessageQueue* queue) {
+	if (isEmpty(queue))
+		return "";
+	return queue->array[queue->front];
+}
+ 
+// Function to get rear of queue
+char* rear(struct MessageQueue* queue) {
+	if (isEmpty(queue))
+		return "";
+	return queue->array[queue->rear];
+}
+
 // threading function
 void *connection_handler(void *);
 
@@ -26,7 +87,8 @@ void *connection_handler(void *);
 
 // Global variables
 int EXIT = 0;
-
+struct MessageQueue* QUEUE;
+int CONFIRMED = 0; // once user is confirmed
 
 int receiveInt(int bits, int socket) {
         int size = 0;
@@ -109,7 +171,6 @@ int main (int argc, char *argv[]) {
 	char buffer[BUFSIZE];
 	int opt = 1; /* 0 to disable options */
 	char filename[BUFSIZE];
-	char pass[100];
 
 	// Check command line arguments
 	if (argc != 4) {
@@ -119,6 +180,9 @@ int main (int argc, char *argv[]) {
 	server_name = argv[1];
 	port = atoi(argv[2]);
 	user_name = argv[3];
+
+	// Initialize global queue to hold messages to process
+	QUEUE = createQueue(1000);
 
 	// Translate server name to IP address
 	server = gethostbyname(server_name);
@@ -133,10 +197,8 @@ int main (int argc, char *argv[]) {
 		exit(1);
 	}
 
-	/*
 	// Load buffer
 	bzero(buffer, BUFSIZE);
-	*/
 
 	// Build server address data structure
 	bzero((char*) &server_addr, sizeof(server_addr));
@@ -151,9 +213,15 @@ int main (int argc, char *argv[]) {
 		perror("Chatclient: Unable to connect to socket\n");
 		exit(1);
 	}
+	
+	// Initialize message_handler thread
+	pthread_t thread2;
+	if (pthread_create( &thread2, NULL, connection_handler, (void*) &s) < 0) {
+		perror("Chatclient: Could not create thread\n");
+		exit(1);
+	}
 
-	// Should this be threaded?
-	// send username to server
+	// Send username to server
 	sendInt(strlen(user_name), 16, s);
 	write(s, user_name, strlen(user_name));
 		
@@ -162,6 +230,9 @@ int main (int argc, char *argv[]) {
 	char server_message[server_message_size];
 	server_message[server_message_size] = '\0';
 	read(s, server_message, server_message_size);
+	push_back(QUEUE, server_message);
+
+	/*
 	printf("%s", server_message);
 	
 	// Scan the password and send to user
@@ -169,40 +240,74 @@ int main (int argc, char *argv[]) {
 	int passSize = strlen(pass);
 	sendInt(passSize, 16, s);	
 
-	//write password to user
+	//write password to server
 	if (write(s, pass, passSize) < 0) {
 		perror("Error writing to socket\n");
 		exit(1);
 	}
+	*/
 
 	// Get and print server acknowledgement
 	int server_response_size = receiveInt(32, s);
 	char server_response[server_response_size];
 	server_response[server_response_size] = '\0';
 	read(s, server_response, server_response_size);
-	printf("%s\n", server_response);
+	push_back(QUEUE, server_response);
+
+	while (!CONFIRMED) {}
 	
-	pthread_t thread2;
 	// Prompt user for operation state?
 	// Collects all messages from socket
 	while (!EXIT) {
+		/*
 		int message_size = receiveInt(32, s);
 		char message[message_size];
 		if (read(s, message, message_size) < 0) {
 			perror("Chatclient: Error reading from socket\n");
 			exit(1);
 		}
-		
-		if (pthread_create( &thread2, NULL, connection_handler, (void*) &buffer) < 0) {
-			perror("Chatclient: Could not create thread\n");
-			exit(1);
-		}
+		*/
 	}
+
+	pthread_join( thread2 , NULL);
 }
 
 // Parses and reacts to messages from socket
-void *connection_handler(void *buffer) {
-	char *message = (char*)buffer;
+void *connection_handler(void *sock) {
+	int s = *(int*)sock;
+	char* message;
+	char pass[100];
+
+	// Wait for message
+	while(isEmpty(QUEUE)) {}
+
+	// Get password
+	message = pop_front(QUEUE);
+	printf("%s", message);
+	
+	// Scan the password and send to user
+	scanf("%s", pass);
+	int passSize = strlen(pass);
+	sendInt(passSize, 16, s);	
+
+	//write password to server
+	if (write(s, pass, passSize) < 0) {
+		perror("Error writing to socket\n");
+		exit(1);
+	}
+
+	// Wait for message
+	while(isEmpty(QUEUE)) {}
+
+	// Get confirmation
+	message = pop_front(QUEUE);
+	printf("%s\n", message);
+
+	if ( strncmp("Welcome", message, 7) != 0 ) {
+		EXIT = 1;
+	}
+
+	CONFIRMED = 1;
 	//printf("%s", message);
 	//printf("Enter FTP operation: ");
 	//bzero((char*)&operation, sizeof(operation));

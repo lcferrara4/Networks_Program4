@@ -268,6 +268,8 @@ int main (int argc, char *argv[]) {
 		exit(1);
 	}
 	
+	pthread_join( thread_id , NULL);
+	
 	return 0;
 }
 

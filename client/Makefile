@@ -5,7 +5,7 @@ PROGRAMS=	chatclient
 all:		chatclient
 
 myftp:		chatclient.c
-	$(CXX) $(CXXFLAGS) -o $@ $^
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lpthread
 
 clean:
 	rm -f $(PROGRAMS)

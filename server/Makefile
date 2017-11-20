@@ -1,5 +1,5 @@
 CXX=		gcc
-CXXFLAGS=	-g -lpthread
+CXXFLAGS=	-g -pthread
 PROGRAMS=	chatserver
 
 all:		chatserver
