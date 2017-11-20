@@ -21,10 +21,20 @@
 
 #define BUFSIZE 4096
 #define MAX_PENDING 5
-#define MAX_USERS 5
+#define MAX_USERS 10
+
 
 // threading function
 void *connection_handler(void *);
+
+//global struct used to keep track user and its socket descriptors
+struct activeUser {
+	char* user_name;
+	int sd;
+};
+
+//Array that stores all the structs
+struct activeUser allUsers[MAX_USERS];
 
 int receiveInt(int bits, int socket) {
 	int size = 0;
@@ -162,8 +172,28 @@ int checkNamePass(char* user_name, char* pass) {
 void writeUserToFile(char* user_name, char* pass) {
 	FILE* fstream = fopen("users.txt", "a");
 	fprintf(fstream, "%s,%s\n", user_name, pass);
-} 
+}
 
+int addActiveUser(char* username, int sock) {
+	int i;
+	for (i = 0; i < MAX_USERS; i++) {
+		if (allUsers[i].user_name == NULL) {
+			allUsers[i].user_name = username;
+			allUsers[i].sd = sock;
+			return 1;
+		}
+	}
+	return 0;  
+}
+
+void printUsers() {
+	int i;
+	for (i = 0; i < MAX_USERS; i++) {
+		if(allUsers[i].user_name != NULL) {
+			printf("%s\n", allUsers[i].user_name);
+		}
+	}
+}
 
 int main (int argc, char *argv[]) {
 
@@ -185,6 +215,13 @@ int main (int argc, char *argv[]) {
 
 	//build address data structure
 	bzero((char *)&server, sizeof(server));
+
+	//initialize user array to null
+	int i;
+	for (i = 0; i < MAX_USERS; i++) {
+		allUsers[i].user_name = NULL;
+		allUsers[i].sd = -1;
+	}
 
 	//setup socket
 	if ((s = socket(AF_INET, SOCK_STREAM, 0)) < 0 ) {
@@ -242,7 +279,9 @@ void *connection_handler(void *socket_desc) {
 	int read_size;
 	char user_name[100];
 	int validPass = 0;
+	int validAdd;
 	int new_user;
+	int i;
 	int userNamePass;
 	char *message, *response_message, client_message[2000];
 	
@@ -291,8 +330,13 @@ void *connection_handler(void *socket_desc) {
 	sendInt(strlen(response_message), 32, sock);
 	write(sock, response_message, strlen(response_message));
 
-	// Save user and password (multiple clients should be able to register at once??): TODO
-	
+	//add user info to array that stores all users info
+	validAdd = addActiveUser(user_name, sock);
+	//printUsers();	
+
+	//zero out client message
+	bzero((char *) client_message, sizeof(client_message));
+
 	// Wait for operation
 	while ( (read_size = recv(sock, client_message, 2000, 0)) > 0) {	
 
@@ -302,19 +346,36 @@ void *connection_handler(void *socket_desc) {
 		if (!strcmp(client_message, "E")) {
 			// Exit
 			close(sock);
-			// Update record of socket descriptors and usernames of active clients: TODO
+			
+			//reset values in allUsers array so spot can be used again
+			for(i = 0; i < MAX_USERS; i++) {
+				if(allUsers[i].sd == sock) {
+					allUsers[i].user_name = NULL;
+					allUsers[i].sd = -1;
+				}
+			}
 			// join ??
 			printf("Chatserver: Client has closed connection.\n");
+		
 		} else if (!strcmp(client_message, "B")) {
 			// Message Broadcasting
 			//bzero((char*)&listing, sizeof(listing));
 			//listDirectory(s_new, listing);
+			
+			for(i = 0; i < MAX_USERS; i++) {
+				if(allUsers[i].user_name != NULL) {
+					write(allUsers[i].sd, client_message, strlen(client_message));
+				}
+			}
+
 		} else if (!strcmp(client_message, "P")) {
 			// Private Messaging
+		
 		} else {
 			printf("That operation doesn't exist. Please try again.");
 		}
 
+		bzero((char *) client_message, sizeof(client_message));
 	}
 	exit(0);
 }
