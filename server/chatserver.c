@@ -21,6 +21,7 @@
 
 #define BUFSIZE 4096
 #define MAX_PENDING 5
+#define MAX_USERS 5
 
 // threading function
 void *connection_handler(void *);
@@ -279,10 +280,9 @@ void *connection_handler(void *socket_desc) {
 		if(!userNamePass) {
 			response_message = "Wrong password! Exiting!";
 		} else {
-			response_message = "Welcome!";
+			response_message = "Welcome back!";
 		}
 	} else {
-		//implement this
 		writeUserToFile(user_name, client_message);
 		response_message = "Welcome new user!";
 	}
@@ -290,8 +290,6 @@ void *connection_handler(void *socket_desc) {
 	//send proper response back to client	
 	sendInt(strlen(response_message), 32, sock);
 	write(sock, response_message, strlen(response_message));
-
-		
 
 	// Save user and password (multiple clients should be able to register at once??): TODO
 	

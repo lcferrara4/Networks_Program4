@@ -160,6 +160,7 @@ int main (int argc, char *argv[]) {
 	// receive server message and print to user
 	int server_message_size = receiveInt(32, s);
 	char server_message[server_message_size];
+	server_message[server_message_size] = '\0';
 	read(s, server_message, server_message_size);
 	printf("%s", server_message);
 	
@@ -177,9 +178,10 @@ int main (int argc, char *argv[]) {
 	// Get and print server acknowledgement
 	int server_response_size = receiveInt(32, s);
 	char server_response[server_response_size];
+	server_response[server_response_size] = '\0';
 	read(s, server_response, server_response_size);
-	printf("%s\n", server_response);	
-
+	printf("%s\n", server_response);
+	
 	pthread_t thread2;
 	// Prompt user for operation state?
 	// Collects all messages from socket
