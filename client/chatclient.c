@@ -232,6 +232,7 @@ int main (int argc, char *argv[]) {
 	read(s, server_message, server_message_size);
 	char* msg_pointer = server_message;
 	push_back(QUEUE, msg_pointer);
+	printf("%s", msg_pointer+1);
 
 	// Get and print server acknowledgement
 	int server_response_size = receiveInt(32, s);
@@ -240,22 +241,24 @@ int main (int argc, char *argv[]) {
 	read(s, server_response, server_response_size);
 	msg_pointer = server_response;
 	push_back(QUEUE, msg_pointer);
+	printf("%s", msg_pointer+1);
 
 	while (!CONFIRMED) {}
 	
 	// Collects all messages from socket
-	//char message [10000];
+	char message [10000];
 	while (!EXIT) {
 			
-		char *message;
 		int message_size = receiveInt(32, s);
-		printf("here\n");
+		message[message_size] = '\0';
 		if (read(s, message, message_size) < 0) {
 			perror("Chatclient: Error reading from socket\n");
 			exit(1);
 		}
 		// put commands in queue to be handled, just print data
 		push_back(QUEUE, message);
+		printf("%s", message+1);
+		bzero((char*)&message, sizeof(message));
 	}
 
 	close(s);
@@ -277,7 +280,6 @@ void *connection_handler(void *sock) {
 
 	// Get password
 	message = pop_front(QUEUE);
-	printf("%s", message+1);
 	
 	// Scan the password and send to user
 	scanf("%s", pass);
@@ -296,7 +298,6 @@ void *connection_handler(void *sock) {
 	// Get confirmation
 	message = pop_front(QUEUE);
 	message++;
-	printf("%s", message);
 
 	if ( strncmp("Welcome", message, 7) != 0 ) {
 		EXIT = 1;
@@ -305,11 +306,13 @@ void *connection_handler(void *sock) {
 	CONFIRMED = 1;
 
 	while (!EXIT) {	
+		bzero((char*)&input, sizeof(input));
 		if (isEmpty(QUEUE)) {
 			printf("Enter P for private conversation.\n");
 			printf("Enter B for message broadcasting.\n");
 			printf("Enter E for Exit.\n");
 			printf(">> ");
+			fflush(stdout);
 			scanf("%s", command);
 			//write command to server
 			if (write(s, command, 1) < 0) {
@@ -317,272 +320,56 @@ void *connection_handler(void *sock) {
 				exit(1);
 			}
 
-			if (strcmp("E", command) == 0)
+			if (strcmp("E", command) == 0) {
+				fflush(stdout);
 				EXIT = 1;
+			}
 			else if (strcmp("P", command) == 0) {
 				// wait for list of users
 				while (isEmpty(QUEUE)){}
 				message = pop_front(QUEUE);
-				/*
 				while (message[0] == 'D') {
-					message++;
-					printf("%s", message);
 					while (isEmpty(QUEUE)){}
 					message = pop_front(QUEUE);
-				}*/
-				message++;
-				printf("%s", message);
+				}
+                                fflush(stdout);
 				
 				// prompt for target user
-				printf("Username of target user >> ");
-				scanf("%s", input);
+				printf("Username of target user >> \n");
+				scanf ("%s", input);
 				sendInt(strlen(input), 16, s);
                 		if (write(s, input, strlen(input)) < 0) {
         				perror("Error writing to socket\n");
 					exit(1);
 				}
+				bzero((char*)&message, sizeof(message));
+				bzero((char*)&input, sizeof(input));
 
 				// prompt for message
-				printf("Message to send >> ");
-				scanf("%s", input);
+				printf("Message to send >> \n");
+				scanf ("%s", input);
 				sendInt(strlen(input), 32, s);
                 		if (write(s, input, strlen(input)) < 0) {
         				perror("Error writing to socket\n");
 					exit(1);
 				}
-
+				bzero((char*)&message, sizeof(message));
+				bzero((char*)&input, sizeof(input));
+                                
+				// wait for ack
+                                while (isEmpty(QUEUE)){}
+                                message = pop_front(QUEUE);
+                                while (message[0] == 'D') {
+                                        while (isEmpty(QUEUE)){}
+                                        message = pop_front(QUEUE);
+                                }
+                                fflush(stdout);
 
 			}	
-	
 		} else {
 			message = pop_front(QUEUE);
-			message++;
-			printf("%s", message);
+			fflush(stdout);
 		}
-
-		// Prompt user for operation state
-		/*
-		if (isEmpty(QUEUE)) {
-			printf("Enter P for private conversation.\n");
-			printf("Enter B for message broadcasting.\n");
-			printf("Enter E for Exit.\n");
-			printf(">> ");
-			scanf("%s", command);
-			if (strcmp("E", command) == 0)
-				EXIT = 1;
-	
-			//write command to server
-			if (write(s, command, 1) < 0) {
-				perror("Error writing to socket\n");
-				exit(1);
-			}
-
-		} else {
-		*/
-			// Get confirmation
-
-		//}
-
-
-		
-
+		bzero((char*)&command, sizeof(command));
 	}
-	//printf("%s", message);
-	//printf("Enter FTP operation: ");
-	//bzero((char*)&operation, sizeof(operation));
-	/*scanf("%s", pass);
-	int passSize = strlen(pass);
-	
-	sendInt(passSize, 16, s);	
-
-	if (write(s, pass, passSize) < 0) {
-		perror("Error writing to socket\n");
-		exit(1);
-	}*/
-	
-	/*if (write(s, operation, size) < 0) {
-		perror("FTP Client: Error writing to socket\n");
-		exit(1);	
-	}
-
-		// Send message to server
-		if (!strcmp(operation, "QUIT")) {
-			// Exit client connection
-			printf("FTP Client: Connection has been closed.\n");
-			exit(0);
-		} else if (!strcmp(operation, "LIST")) {
-			// List directory at the server
-			// Get directory listing size
-			int listing_size = receiveInt(32, s);
-			char listing[listing_size];
-			if (read(s, listing, listing_size) < 0) {
-				perror("FTP Client: Error reading from socket\n");
-				exit(1);
-			}
-			printf("%s", listing);
-		} else if (!strcmp(operation, "DWLD")) {
-
-			// Download file
-			struct timeval start_t, end_t;               
-			
-			// Get start time
-			if(gettimeofday(&start_t, NULL)==-1){
-				perror("FTP Client: Start Time Error!\n"); 
-				exit(1); 
-			}
- 
-			bzero((char*)&filename, sizeof(filename));
-			sendFileDir(s, filename);
-			
-			int file_size = receiveInt(32, s);
-			int total_recv = 0;
-			int i = 0;
-			int x;
-			char inner_buffer[BUFSIZE];
-
-			if(file_size == -1) {
-				printf("The desired file does not exist\n");
-				continue;
-			
-			} else {
-				FILE *fp = fopen(filename, "a");
-				int recv_len = 0;
-				int total = 0;
-				
-				while((recv_len = recv(s, inner_buffer, BUFSIZE, 0)) > 0) {
-					total += recv_len;
-					if(total > file_size) {
-						inner_buffer[file_size - (total - recv_len)] = '\0';
-						x = fwrite(inner_buffer, sizeof(char), file_size - (total - recv_len), fp);
-						break;
-					}
-					x = fwrite(inner_buffer, sizeof(char), recv_len, fp);
-					bzero(inner_buffer, BUFSIZE);
-					if (total >= file_size) break;
-				}
-				fclose(fp);
-				
-				
-			}
-			// Get end time
-			if(gettimeofday(&end_t, NULL)==-1){
-                    		perror("FTP Client: End Time Error!\n"); 
-                    		exit(1);
-				
-                	}
-                	double throughput = (end_t.tv_usec - start_t.tv_usec); 
-                	printf("Download was successful. Throughput: %f microseconds\n", throughput);
-
-		} else if (!strcmp(operation, "UPLD")) {
-			// Upload file
-			bzero((char*)&filename, sizeof(filename));
-			sendFileDir(s, filename);
-			// Upload file
-			char inner_buffer[BUFSIZE];
-			int x = getFileSize(filename);
-			sendInt(x, 32, s);
-			FILE *fp = fopen(filename, "r");		
-			printf("before while\n");	
-
-			int sent = 0;
-			int total = 0;
-			while(sent = fread(inner_buffer, sizeof(char), BUFSIZE, fp)) {
-				total += sent;
-				if(write(s, inner_buffer, sent) < 0) {
-					perror("FTP Server: Error sending file\n");
-					exit(1);
-				}
-				bzero(inner_buffer, BUFSIZE);
-				if(total >= x) break;
-			}
-			fclose(fp);
-		} else if (!strcmp(operation, "DELF")) {
-			// Delete file
-			bzero((char*)&filename, sizeof(filename));
-			sendFileDir(s, filename);
-
-			int confirm = receiveInt(32, s);
-			if (confirm < 0) {
-				printf("The file does not exist on server\n");
-			} else {
-				char inner_buffer[BUFSIZE];
-				printf("Are you sure you want to delete? Yes or No: ");
-				scanf("%s", inner_buffer);
-				size = strlen(inner_buffer);
-				if (write(s, inner_buffer, size) < 0) {
-					perror("FTP Client: Error writing to socket\n");
-					exit(1);
-				}
-				if (!strcmp(inner_buffer, "Yes")){
-					confirm = receiveInt(32, s);
-					if (confirm < 0) {
-						perror("FTP Client: Error deleting the file\n");
-						exit(1);
-					} else {
-						printf("File deleted successfully\n");
-					}	
-				} else {
-					printf("Delete abandoned by the user!\n");
-				}
-			}
-		} else if (!strcmp(operation, "MDIR")) {
-			// Make directory
-			bzero((char*)&filename, sizeof(filename));
-			sendFileDir(s, filename);
-
-			int confirm = receiveInt(32, s);
-			if (confirm == -2) {
-				printf("The directory already exists on server\n");
-			} else if (confirm == -1) {
-				printf("Error in making directory\n");
-			} else {
-				printf("The directory was successfully made\n");
-			}
-		} else if (!strcmp(operation, "RDIR")) {
-			// Remove directory
-			bzero((char*)&filename, sizeof(filename));
-			sendFileDir(s, filename);
-
-			int confirm = receiveInt(32, s);
-			if (confirm == -1) {
-				printf("The directory doesn't exist on server\n");
-			} else {
-				char inner_buffer[BUFSIZE];
-				printf("Are you sure you want to delete? Yes or No: ");
-				scanf("%s", inner_buffer);
-				size = strlen(inner_buffer);
-				if (write(s, inner_buffer, size) < 0) {
-					perror("FTP Client: Error writing to socket\n");
-					exit(1);
-				}
-				if (!strcmp(inner_buffer, "Yes")){
-					confirm = receiveInt(32, s);
-					if (confirm < 0) {
-						perror("FTP Client: Error deleting the directory\n");
-						exit(1);
-					} else {
-						printf("Directory deleted successfully\n");
-					}
-				} else {
-					printf("Delete abandoned by the user!\n");
-				}
-			}
-		} else if (!strcmp(operation, "CDIR")) {
-			// Change to a different directory
-			bzero((char*)&filename, sizeof(filename));
-			sendFileDir(s, filename);
-
-			int confirm = receiveInt(32, s);
-			if (confirm == -2) {
-				printf("The directory doesn't exist on server\n");
-			} else if (confirm == -1) {
-				printf("Error in changing directory\n");
-			} else {
-				printf("Changed current directory\n");
-
-			}
-		}
-	}
-	exit(0);*/
 }
-
