@@ -1,11 +1,12 @@
 CXX=		gcc
-CXXFLAGS=	-g -pthread
+CXXFLAGS=	-g
+LDFLAGS=	-pthread
 PROGRAMS=	chatserver
 
 all:		chatserver
 
 myftpd:		chatserver.c
-	$(CXX) $(CXXFLAGS) -o $@ $^
+	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
 
 clean:
 	rm -f $(PROGRAMS)
