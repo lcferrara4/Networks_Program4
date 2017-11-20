@@ -66,7 +66,6 @@ void sendInt(int x, int bits, int socket) {
 		char *data = (char*)&conv;
 		int size_int = sizeof(conv);
 		// Write size of listing as 32-bit int		
-	        //printf("%i\n", x);	
 		if (write(socket, data, size_int) < 0) {
 			perror("FTP Server: Error sending size of directory listing\n");
 			exit(1);
@@ -186,6 +185,16 @@ int addActiveUser(char* username, int sock) {
 	return 0;  
 }
 
+int userOnline(char* username){
+	int i;
+        for (i = 0; i < MAX_USERS; i++) {
+                if (allUsers[i].user_name != NULL && !strcmp(allUsers[i].user_name, username)) {
+                        return i;
+                }
+        }
+	return -1;
+}
+
 void printUsers() {
 	int i;
 	for (i = 0; i < MAX_USERS; i++) {
@@ -193,6 +202,18 @@ void printUsers() {
 			printf("%s\n", allUsers[i].user_name);
 		}
 	}
+}
+
+char* formatMessage(char* message, char* type) {
+
+	
+	int newsize = strlen(message) + 1;
+	char * newBuffer = (char *)malloc(newsize);
+
+	strcpy(newBuffer, type);
+	strcat(newBuffer, message);
+
+	return newBuffer;
 }
 
 int main (int argc, char *argv[]) {
@@ -286,6 +307,8 @@ void *connection_handler(void *socket_desc) {
 	int i;
 	int userNamePass;
 	char *message, *response_message, client_message[2000];
+	char client_input[10000];
+	char *data_type;
 	
 	//Receive client_message which is user name
 	read_size = receiveInt(16, sock);
@@ -303,6 +326,7 @@ void *connection_handler(void *socket_desc) {
 	} else {
 		message = "New user? Create password >> ";
 	}
+	message = formatMessage(message, "C");
 
 	//send proper message back to client
 	sendInt(strlen(message), 32, sock);
@@ -319,14 +343,16 @@ void *connection_handler(void *socket_desc) {
 	if (new_user) {
 		userNamePass = checkNamePass(user_name, client_message);
 		if(!userNamePass) {
-			response_message = "Wrong password! Exiting!";
+			response_message = "Wrong password! Exiting!\n";
 		} else {
-			response_message = "Welcome back!";
+			response_message = "Welcome back!\n";
 		}
 	} else {
 		writeUserToFile(user_name, client_message);
-		response_message = "Welcome new user!";
+		response_message = "Welcome new user!\n";
 	}
+	
+	response_message = formatMessage(response_message, "C");
 	
 	//send proper response back to client	
 	sendInt(strlen(response_message), 32, sock);
@@ -334,7 +360,6 @@ void *connection_handler(void *socket_desc) {
 
 	//add user info to array that stores all users info
 	validAdd = addActiveUser(user_name, sock);
-	//printUsers();	
 
 	//zero out client message
 	bzero((char *) client_message, sizeof(client_message));
@@ -346,9 +371,17 @@ void *connection_handler(void *socket_desc) {
 		client_message[read_size] = '\0';
 
 		if (!strcmp(client_message, "E")) {
-			// Exit
+
+			//send confirmation that server connection has closed
+			message = "Connection to server closed.\n";
+			message = formatMessage(message, "C");
+
+			//send proper message back to client
+			sendInt(strlen(message), 32, sock);
+			write(sock, message, strlen(message));
+
 			close(sock);
-			
+
 			//reset values in allUsers array so spot can be used again
 			for(i = 0; i < MAX_USERS; i++) {
 				if(allUsers[i].sd == sock) {
@@ -356,22 +389,74 @@ void *connection_handler(void *socket_desc) {
 					allUsers[i].sd = -1;
 				}
 			}
-			// join ??
 			printf("Chatserver: Client has closed connection.\n");
+			break;
 		
 		} else if (!strcmp(client_message, "B")) {
 			// Message Broadcasting
-			//bzero((char*)&listing, sizeof(listing));
-			//listDirectory(s_new, listing);
 			
 			for(i = 0; i < MAX_USERS; i++) {
 				if(allUsers[i].user_name != NULL) {
-					write(allUsers[i].sd, client_message, strlen(client_message));
+					message = formatMessage(message, "D");
+			
+					write(allUsers[i].sd, message, strlen(message));
 				}
 			}
 
 		} else if (!strcmp(client_message, "P")) {
 			// Private Messaging
+				
+			char* buffer = "C";
+			int newsize = 0;
+			for(i = 0; i < MAX_USERS; i++) {
+				if(allUsers[i].user_name != NULL) {
+					newsize = strlen(buffer) + strlen(allUsers[i].user_name) + 2;
+					char * newBuffer = (char *)malloc(newsize);
+	
+					strcpy(newBuffer, buffer);
+					strcat(newBuffer, allUsers[i].user_name);
+					strcat(newBuffer, "\n");
+					buffer = newBuffer;
+				}
+			}
+			sendInt(newsize, 32, sock);
+			write(sock, buffer, newsize);
+			
+			bzero((char *) client_input, sizeof(client_input));
+
+			// Get target user
+			read_size = receiveInt(16, sock);
+			read(sock, client_input, read_size);
+			printf("target user: %s\n", client_input);
+			char* target_user = (char *)malloc(strlen(client_input));
+			strcpy(target_user, client_input);
+			bzero((char *) client_input, sizeof(client_input));
+
+			// Get message
+			read_size = receiveInt(32, sock);
+			read(sock, client_input, read_size);
+			char* target_ptr = (char *)malloc(strlen(client_input));
+			strcpy(target_ptr, client_input);
+			printf("Can I say \"%s\"\n", target_ptr);
+			bzero((char *) client_input, sizeof(client_input));
+
+			bzero((char*)&response_message, sizeof(response_message));
+			// Send if target user is online and exists
+			if ((i = userOnline(target_user)) != -1){
+				target_ptr = formatMessage(target_ptr, "C");
+				sendInt(strlen(target_ptr), 32, allUsers[i].sd);
+				write(allUsers[i].sd, target_ptr, strlen(target_ptr));
+
+				response_message = "Message was sent!\n";
+			} else {
+				printf("not sent\n");
+				response_message = "Target user did not exist or was not online.\n";
+			}
+			
+			// Send acknowledgment
+			response_message = formatMessage(response_message, "C");
+			sendInt(strlen(response_message), 32, sock);
+			write(sock, response_message, strlen(response_message));
 		
 		} else {
 			printf("That operation doesn't exist. Please try again.");
@@ -379,6 +464,5 @@ void *connection_handler(void *socket_desc) {
 
 		bzero((char *) client_message, sizeof(client_message));
 	}
-	exit(0);
 }
 
