@@ -230,60 +230,54 @@ int main (int argc, char *argv[]) {
 	char server_message[server_message_size];
 	server_message[server_message_size] = '\0';
 	read(s, server_message, server_message_size);
-	push_back(QUEUE, server_message);
-
-	/*
-	printf("%s", server_message);
-	
-	// Scan the password and send to user
-	scanf("%s", pass);
-	int passSize = strlen(pass);
-	sendInt(passSize, 16, s);	
-
-	//write password to server
-	if (write(s, pass, passSize) < 0) {
-		perror("Error writing to socket\n");
-		exit(1);
-	}
-	*/
+	char* msg_pointer = server_message;
+	push_back(QUEUE, msg_pointer);
 
 	// Get and print server acknowledgement
 	int server_response_size = receiveInt(32, s);
 	char server_response[server_response_size];
 	server_response[server_response_size] = '\0';
 	read(s, server_response, server_response_size);
-	push_back(QUEUE, server_response);
+	msg_pointer = server_response;
+	push_back(QUEUE, msg_pointer);
 
 	while (!CONFIRMED) {}
 	
-	// Prompt user for operation state?
 	// Collects all messages from socket
+	//char message [10000];
 	while (!EXIT) {
-		/*
+			
+		char *message;
 		int message_size = receiveInt(32, s);
-		char message[message_size];
+		printf("here\n");
 		if (read(s, message, message_size) < 0) {
 			perror("Chatclient: Error reading from socket\n");
 			exit(1);
 		}
-		*/
+		// put commands in queue to be handled, just print data
+		push_back(QUEUE, message);
 	}
 
+	close(s);
 	pthread_join( thread2 , NULL);
+	fflush(stdout);
+	return 0;
 }
 
-// Parses and reacts to messages from socket
+// Parse and reacts to messages from socket
 void *connection_handler(void *sock) {
 	int s = *(int*)sock;
 	char* message;
 	char pass[100];
+	char command[3];
+	char input[2000];
 
 	// Wait for message
 	while(isEmpty(QUEUE)) {}
 
 	// Get password
 	message = pop_front(QUEUE);
-	printf("%s", message);
+	printf("%s", message+1);
 	
 	// Scan the password and send to user
 	scanf("%s", pass);
@@ -301,13 +295,98 @@ void *connection_handler(void *sock) {
 
 	// Get confirmation
 	message = pop_front(QUEUE);
-	printf("%s\n", message);
+	message++;
+	printf("%s", message);
 
 	if ( strncmp("Welcome", message, 7) != 0 ) {
 		EXIT = 1;
 	}
 
 	CONFIRMED = 1;
+
+	while (!EXIT) {	
+		if (isEmpty(QUEUE)) {
+			printf("Enter P for private conversation.\n");
+			printf("Enter B for message broadcasting.\n");
+			printf("Enter E for Exit.\n");
+			printf(">> ");
+			scanf("%s", command);
+			//write command to server
+			if (write(s, command, 1) < 0) {
+				perror("Error writing to socket\n");
+				exit(1);
+			}
+
+			if (strcmp("E", command) == 0)
+				EXIT = 1;
+			else if (strcmp("P", command) == 0) {
+				// wait for list of users
+				while (isEmpty(QUEUE)){}
+				message = pop_front(QUEUE);
+				/*
+				while (message[0] == 'D') {
+					message++;
+					printf("%s", message);
+					while (isEmpty(QUEUE)){}
+					message = pop_front(QUEUE);
+				}*/
+				message++;
+				printf("%s", message);
+				
+				// prompt for target user
+				printf("Username of target user >> ");
+				scanf("%s", input);
+				sendInt(strlen(input), 16, s);
+                		if (write(s, input, strlen(input)) < 0) {
+        				perror("Error writing to socket\n");
+					exit(1);
+				}
+
+				// prompt for message
+				printf("Message to send >> ");
+				scanf("%s", input);
+				sendInt(strlen(input), 32, s);
+                		if (write(s, input, strlen(input)) < 0) {
+        				perror("Error writing to socket\n");
+					exit(1);
+				}
+
+
+			}	
+	
+		} else {
+			message = pop_front(QUEUE);
+			message++;
+			printf("%s", message);
+		}
+
+		// Prompt user for operation state
+		/*
+		if (isEmpty(QUEUE)) {
+			printf("Enter P for private conversation.\n");
+			printf("Enter B for message broadcasting.\n");
+			printf("Enter E for Exit.\n");
+			printf(">> ");
+			scanf("%s", command);
+			if (strcmp("E", command) == 0)
+				EXIT = 1;
+	
+			//write command to server
+			if (write(s, command, 1) < 0) {
+				perror("Error writing to socket\n");
+				exit(1);
+			}
+
+		} else {
+		*/
+			// Get confirmation
+
+		//}
+
+
+		
+
+	}
 	//printf("%s", message);
 	//printf("Enter FTP operation: ");
 	//bzero((char*)&operation, sizeof(operation));
